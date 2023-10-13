@@ -1,0 +1,7 @@
+,point_type,point,requirement
+0,+,6,Defines base + offset (register + offset) or Identifies a difference betweenoffset and index.
+1,+,6,"Identifies base + offset example. (elements in a pts stack frame, elementsin a struct, multi-word elements, etc.)"
+2,+,6,Defines base + index (register + register) or Identifies a differencebetween index and offset.
+3,+,6,"Identifies base + index example. (arrays, etc.)"
+4,+,0,Incorrect
+5,+,0,Incorrect or blank or no answer
