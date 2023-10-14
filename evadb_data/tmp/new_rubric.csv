@@ -1,7 +1,6 @@
-,point_type,point,requirement
-0,+,6,Defines base + offset (register + offset) or Identifies a difference betweenoffset and index.
-1,+,6,"Identifies base + offset example. (elements in a pts stack frame, elementsin a struct, multi-word elements, etc.)"
-2,+,6,Defines base + index (register + register) or Identifies a differencebetween index and offset.
-3,+,6,"Identifies base + index example. (arrays, etc.)"
-4,+,0,Incorrect
-5,+,0,Incorrect or blank or no answer
+,point_type,points,requirement,rubric_no
+0,+,5,"Gives two examples of valid data structures(Array lists, Stack, ect.)",1
+1,+,5,Mentions that memory has a much larger capacity/Registers running out of space,2
+2,+,3,Only mentions one example of a valid data structure,3
+3,+,0,Mentions how main memory is used to hold data in a more permanent way (incorrect sinceRAM clears itself after shutdown),4
+4,+,0,Incorrect / blank / no answer,5
