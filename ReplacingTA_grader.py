@@ -12,9 +12,33 @@ import warnings
 warnings.filterwarnings("ignore")
 ################################################################
 
+'''
+1. get input
+-> Problem
+-> Student's Answer
+-> Rubric
+    - from llm by using Problem -> db
+    - from pdf -> db
+-> parsing and store them into "Grade_standard" db
+
+2. get score 
+-> ask llm to grade based on the each rubric section, and 
+    make db for storing score for each rubric section like 
+    1. | 3/6 | reasons...
+    2. | 6/6 | reasons...
+    ...
+-> merciful, moderate, tough
+    get the score from those three scores and get average
+
+-> get report for explaining the reasons why it has this grade
+    -> hugface?
+
+-> out
+'''
+
+
 NEW_RUBRIC_PATH = os.path.join("evadb_data", "tmp", "new_rubric.csv")
 RUBRIC_NO = 0
-
 
 # def try_to_import_llm():
 #     """
@@ -44,13 +68,15 @@ def handle_user_input() -> Dict:
     """
 
     print(
-        "Welcome to GRADER, This app is going to grade your answer based on your/generated rubric \n \
-        << You will need the 'Problem' and 'Answer' you want to score >>\n"
+        "=================================================================================================\n\
+|| 👋 Welcome to GRADER, This app is going to grade your answer based on your/generated rubric ||\n\
+||             << You will need the 'Problem' and 'Answer' you want to score >>                ||\n\
+=================================================================================================\n"
     )
 
     question_str = str(
         input(
-            "Provide 'Question' here :: "
+            "📖 Provide 'Question' here :: \n"
         )
     )
 
@@ -58,7 +84,7 @@ def handle_user_input() -> Dict:
 
     answer_str = str(
         input(
-            "Provide 'Answer' you want to grade here :: "
+            "🖍 Provide 'Answer' you want to grade here :: \n"
         )
     )
 
@@ -76,7 +102,8 @@ def handle_user_input() -> Dict:
         else:
             use_rubric_pdf = str(
                 input(
-                    "Do you have a rubric for this question? ('yes' for using your rubric / 'no' for using automatic generated rubric) ::"
+                    "📄 Do you have a rubric for this question?, then please give me. \n\
+('yes' for using your rubric / 'no' for using automatic generated rubric) :: \n"
                 ).lower()
             )
 
@@ -94,7 +121,7 @@ def get_rubric_pdf():
     current_directory = os.getcwd()
     rubric_pdf_local_path = str(
         input(
-            "Enter the local path to your rubric pdf ::"
+            "📂 Enter the local path to your rubric pdf :: \n"
         )
     )
     
@@ -106,17 +133,19 @@ def get_rubric_pdf():
     if os.path.exists(check_file_here):
         print("✅ Your Rubric is alread in this current directory!")
     else:
-        print("Moving your file into current directory...")
+        print("⏳ Moving your file into current directory...")
         try:
             shutil.move(rubric_pdf_local_path, current_directory)
             print(f"✅ Rubric moved successfully from '{rubric_pdf_local_path}' to '{current_directory}'")
         except FileNotFoundError:
-            print("Source file not found.")
+            print("❓ Source file not found, check your local path again")
         except PermissionError:
-            print("Permission denied. Make sure you have the necessary permissions to move the file.")
+            print("❗️ Permission denied. Make sure you have the necessary permissions to move the file.")
         except Exception as e:
-            print(f"An error occurred: {e}")
+            print(f"❗️ An error occurred: {e}")
+
     # print(user_input)
+    print("⏳ Loading Rubric into EvaDB Table")
     cursor.query("DROP TABLE IF EXISTS Rubric_PDF;").df()
     cursor.query("LOAD PDF '{}' INTO Rubric_PDF;".format(user_input['rubric_pdf_name'])).df()
     # print(cursor.query("SELECT * FROM Rubric_PDF").df())
@@ -130,16 +159,17 @@ def generate_rubric():
 
     rubric_no_request = int(
         input(
-            "How many rubrics you need? (only integer) :: "
+            "✔ How many rubrics you need? (only integer) :: \n"
         )
     )
 
     total_score_request = int(
         input(
-            "What is the total score is this question? (only integer) :: "
+            "✔ What is the total score is this question? (only integer) :: \n"
         )
     )
 
+    # Generating Prompt => (takes 266 tokens for template) + (question's token) <= ~500
     PROMPT_RUBRIC = '''
                     [no prose]
                     [Output only JSON]
@@ -154,11 +184,12 @@ def generate_rubric():
                     '''.format(rubrics_no = rubric_no_request,
                                total_score = total_score_request,
                                question = user_input["question"])
-    print(PROMPT_RUBRIC)
+    # print(PROMPT_RUBRIC)
+    print("⏳ Generating Rubric by using LLM (may take a while)...")
     response = model.prompt(PROMPT_RUBRIC,
                             system="Answer like you are Teaching Assistant", temperature=0.5)
     
-    print(response)
+    # print(response)
 
     # json parsing
     try:
@@ -168,11 +199,9 @@ def generate_rubric():
         df_json.to_csv(NEW_RUBRIC_PATH, index=False)
         print("✅ Rubric successfully generated!")
     except ValueError:
-        print("wrong format of JSON from llm, run again")
+        print("🔁 wrong format of JSON from llm, run again")
     except Exception as e:
-        print(f"An error occurred: {e}")
-
-
+        print(f"❗️ An error occurred: {e}")
 
 def split_string(text):
     parts = text.split(':') # must be formatted by "part1 : part2"
@@ -180,7 +209,7 @@ def split_string(text):
         part1 = parts[0].replace(" ", "")  ###### numbering 1,2,...
         part1 = part1.strip()
         part2 = parts[1].strip()
-        return [part1[2], int(part1[3]), part2] ###### numbering
+        return [part1[2], int(part1[3]), part2] ###### numbering, should be less than 10
     return [None, None, None]
 
 def make_standard_rubric():
@@ -197,6 +226,7 @@ def make_standard_rubric():
         new_data_column['rubric_no'] = new_data_column.index + 1
         new_data_column.to_csv(NEW_RUBRIC_PATH)
 
+    print("⏳ Parsing Rubric to make Standard Rubric")
     cursor.query("DROP TABLE IF EXISTS Grade_standard;").df()
     cursor.query(
         '''CREATE TABLE IF NOT EXISTS Grade_standard (point_type TEXT(1), points INTEGER, requirement TEXT(300), rubric_no INTEGER);'''
@@ -208,8 +238,10 @@ def make_standard_rubric():
 
 def grading():
 
+    print("⏳ Grading now (may take a while)...")
+
     # create Grade_Result table for collecting various version of result
-    llm_system = [("tough", "0.2"), ("moderate", "0.5"), ("merciful", "0.7")] # grader_style, and temperature value
+    llm_system = [("tough", "0.2"), ("moderate", "0.5"), ("merciful", "0.8")] # grader_style, and temperature value
 
     cursor.query("DROP TABLE IF EXISTS Grade_Result;").df()
     cursor.query(
@@ -218,6 +250,7 @@ def grading():
 
     # print(cursor.query("SHOW FUNCTIONS;").df())
 
+    ########################################################################
     # create LLM function
     # cursor.query("CREATE FUNCTION IF NOT EXISTS LLMFunction IMPL 'evadb_data/functions/LLMFunction.py'").df()
 
@@ -225,94 +258,74 @@ def grading():
     #                     Do not include any explanations, only provide points that student will get.
     #                 '''.format(student_answer=user_input['answer'])
     # for i in range(len(llm_system)):
+    
+    # cursor.query("LLMFunction({queries}, requirement, {systems}, {temperatures}, points) FROM Grade_standard".format(queries=PROMPT_GRADING,systems=llm_system[i][0],temperatures=llm_system[i][1])).df()
+
+    
     #     cursor.table("Grade_standard").select("LLMFunction({queries}, requirement, {systems}, {temperatures}, points)".format(
     #         queries=PROMPT_GRADING,
     #         systems=llm_system[i][0],
     #         temperatures=llm_system[i][1]
     #     )).df()
+    ########################################################################
 
     def try_llm_prompt(command, system, temperature):
         return str(model.prompt(command, system=command, temperature=temperature))
     
+    # Grading Prompt => ((takes 171 tokens for template) + (answer)) * rubric_no <= ~1200
     PROMPT_GRADING = '''
                         [no prose]
                         Here is the criteria: {criteria},
                         Total score for this criteria {total_points},
-                        Based on the given criteria  score/grade this student's answer: {student_answer}
+                        Based on the given criteria  score/grade this student's answer: "{student_answer}"
                         Don't include any explanations in your responses, only provide just one single integer that student will get (i.e '3'), and not greater than total score.
                     '''
     PROMPT_SYSTEM = "You are Teaching Assistant and {} grader."
 
     requirements = cursor.query("SELECT points, requirement FROM Grade_standard").df()
-    print(requirements)
+    # print(requirements)
     for i in range(RUBRIC_NO):
         current_criteria = requirements["grade_standard.requirement"][i]
         current_total_points = requirements["grade_standard.points"][i]
-        print(current_criteria, current_total_points)
+        # print(current_criteria, current_total_points)
+        print("rubric no = ", i)
         for j in range(len(llm_system)):
             if current_total_points == 0:
                 continue
             PROMPT_GRADING = PROMPT_GRADING.format(criteria=current_criteria, total_points=current_total_points, student_answer=user_input['answer'])
             PROMPT_SYSTEM = PROMPT_SYSTEM.format(llm_system[j][0])
             get_scored = try_llm_prompt(PROMPT_GRADING, PROMPT_SYSTEM, float(llm_system[j][1]))
-            print(get_scored, type(str(get_scored)))
+            print(get_scored, "/", current_total_points, " from ", llm_system[j][0], " grader")
             try:
                 get_scored = int(get_scored)
             except ValueError:
-                print("couldn't get score from llm, let me try again")
+                print("🔁 couldn't get score from llm, let me try again")
                 trial = 3
                 while trial != 0:
                     if len(try_llm_prompt(PROMPT_GRADING, PROMPT_SYSTEM, float(llm_system[j][1]))) == 1:
                         get_scored = int(get_scored)
                         break
                     trial -= 1
-                print("couldn't get score from llm, run again")
+                print("❗ couldn't get score from llm, run again")
             except Exception as e:
-                print(f"An error occurred: {e}")
+                print(f"❗ An error occurred: {e}")
             
             if get_scored > current_total_points:
-                get_scored = current_total_points
+                get_scored = current_total_points # fit into bound score
 
             cursor.query(f"INSERT INTO Grade_Result (rubric_no, points) VALUES ({i+1}, {get_scored});").execute()
+        print("==========================================")
 
     
-    print(cursor.query("SELECT * FROM Grade_Result;").df())
+    # print(cursor.query("SELECT * FROM Grade_Result;").df())
     # print(cursor.query("SELECT grade_result.rubric_no, AVG(grade_result.points) FROM Grade_result GROUP BY grade_result.rubric_no").df())
     mean_of_scores = cursor.query("SELECT * FROM Grade_Result;").df().groupby('grade_result.rubric_no').mean()
-    print(mean_of_scores)
+    # print(mean_of_scores)
     total_score = mean_of_scores["grade_result.points"].sum()
-    print(total_score)
+    # print(total_score)
+    print("============================================")
     return total_score
 
-
-
-
-
-
-
-'''
-1. get input
--> Problem
--> Student's Answer
--> Rubric
-    - from llm by using Problem -> db
-    - from pdf -> db
--> parsing and store them into "Grade_standard" db
-
-2. get score 
--> ask llm to grade based on the each rubric section, and 
-    make db for storing score for each rubric section like 
-    1. | 3/6 | reasons...
-    2. | 6/6 | reasons...
-    ...
--> merciful, moderate, tough
-    get the score from those three scores and get average
-
--> get report for explaining the reasons why it has this grade
-    -> hugface?
-
--> out
-'''
 
 if __name__ == "__main__":
     # cleanup()
@@ -320,28 +333,34 @@ if __name__ == "__main__":
     cursor = evadb.connect().cursor()
     user_input = handle_user_input()
 
-    # get OpenAI key
-    model = llm.get_model("gpt-3.5-turbo")
     try:
-        model.key = os.environ['OPENAI_KEY']
-    except KeyError:
-        model.key = str(input("Enter your OpenAI key :: "))
-        os.environ["OPENAI_KEY"] = model.key
+        # get OpenAI key
+        model = llm.get_model("gpt-3.5-turbo")
+        try:
+            model.key = os.environ['OPENAI_KEY']
+        except KeyError:
+            model.key = str(input("🔒 Enter your OpenAI key :: "))
+            os.environ["OPENAI_KEY"] = model.key
+        # print(user_input)
 
+        # test()
+        if user_input['use_rubric']:
+            get_rubric_pdf()
+        else:
+            generate_rubric()
+        
+        make_standard_rubric()
 
-    print(user_input)
-    # test()
-    if user_input['use_rubric']:
-        get_rubric_pdf()
-    else:
-        generate_rubric()
-    
-    make_standard_rubric()
+        print("|| ✅The total score is :: ", grading(), " ||")
+        print("============================================")
+        print("👋 Session ended.")
+        print("===========================================")
+    except KeyboardInterrupt:
+        print("❎ You ended session!")
+    except Exception as e:
+        # cleanup()
+        print("❗️ Session ended with an error.")
+        print(e)
+        print("===========================================")
 
-    # 2.
-
-    print("✅The total score is :: ", grading())
-
-
-
-
+    exit(0)

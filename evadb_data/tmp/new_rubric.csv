@@ -1,6 +1,4 @@
-,point_type,points,requirement,rubric_no
-0,+,5,"Gives two examples of valid data structures(Array lists, Stack, ect.)",1
-1,+,5,Mentions that memory has a much larger capacity/Registers running out of space,2
-2,+,3,Only mentions one example of a valid data structure,3
-3,+,0,Mentions how main memory is used to hold data in a more permanent way (incorrect sinceRAM clears itself after shutdown),4
-4,+,0,Incorrect / blank / no answer,5
+point_type,points,requirement,rubric_no
++,9,Provides a valid example where registers make a task run faster,1
++,9,Justifies the answer with a clear explanation,2
++,9,Demonstrates understanding of the concept of registers and their impact on task performance,3
